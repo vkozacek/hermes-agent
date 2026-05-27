@@ -144,7 +144,7 @@ def interruptible_api_call(agent, api_kwargs: dict):
     the main retry loop can try again with backoff / credential rotation /
     provider fallback.
     """
-    result = {"response": None, "error": None}
+    result = {"response": None, "error": None, "traceback": None}
     request_client_holder = {"client": None, "owner_tid": None}
     request_client_lock = threading.Lock()
 
@@ -244,7 +244,9 @@ def interruptible_api_call(agent, api_kwargs: dict):
                 )
                 result["response"] = request_client.chat.completions.create(**api_kwargs)
         except Exception as e:
+            import traceback
             result["error"] = e
+            result["traceback"] = traceback.format_exc()
         finally:
             _close_request_client_once("request_complete")
 
@@ -411,6 +413,9 @@ def interruptible_api_call(agent, api_kwargs: dict):
                 pass
             raise InterruptedError("Agent interrupted during API call")
     if result["error"] is not None:
+        tb = result.get("traceback")
+        if tb:
+            logger.error("API worker thread traceback:\n%s", tb)
         raise result["error"]
     return result["response"]
 

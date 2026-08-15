@@ -1634,6 +1634,20 @@ def run_doctor(args):
             if _candidate.exists():
                 _venv_bin = _candidate
                 break
+        # Git installs may keep the runtime outside the checkout (the
+        # supported macOS layout uses ~/.hermes/hermes-agent/.venv).  In that
+        # layout the active interpreter is stronger evidence than a missing
+        # checkout-local venv: verify the sibling entry point instead of
+        # reporting a false warning.
+        if _venv_bin is None:
+            _active_candidates = (
+                Path(sys.prefix) / ("Scripts" if sys.platform == "win32" else "bin") / "hermes",
+                Path(sys.executable).resolve().parent / "hermes",
+            )
+            for _active_candidate in _active_candidates:
+                if _active_candidate.exists():
+                    _venv_bin = _active_candidate
+                    break
 
         # Determine the expected command link directory (mirrors install.sh logic)
         _prefix = os.environ.get("PREFIX", "")
@@ -1655,7 +1669,11 @@ def run_doctor(args):
                 f"Reinstall entry point: cd {PROJECT_ROOT} && source venv/bin/activate && pip install -e '.[all]'"
             )
         else:
-            check_ok(f"Venv entry point exists ({_venv_bin.relative_to(PROJECT_ROOT)})")
+            try:
+                _venv_display = str(_venv_bin.relative_to(PROJECT_ROOT))
+            except ValueError:
+                _venv_display = str(_venv_bin)
+            check_ok(f"Venv entry point exists ({_venv_display})")
 
             # Check the symlink at the command link location
             if _cmd_link.is_symlink():
